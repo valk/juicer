@@ -1,0 +1,36 @@
+{
+  "reserve_percent": 20,
+  "no_reserve_hours": {
+    "start": "02:00",
+    "end": "07:00"
+  },
+  "smart_mode": {
+    "enabled": true,
+    "tasks_per_cycle": 3
+  },
+  "mode": "auto",
+  "human_in_loop": {
+    "ask_cadence": "every_window_reset"
+  },
+  "telegram_verbosity": "narrow",
+  "projects": [
+    {
+      "name": "example-project-1",
+      "path": "/absolute/path/to/example-project-1",
+      "notes": "Replace with a real project. Describe what it does, any production/deploy surface, and anything the agent should treat carefully."
+    },
+    {
+      "name": "example-project-2",
+      "path": "/absolute/path/to/example-project-2",
+      "notes": "A second placeholder — copy this block per project you register.",
+      "smart_mode": {
+        "tasks_per_cycle": 5
+      }
+    },
+    {
+      "name": "recon",
+      "path": "/absolute/path/to/recon",
+      "notes": "Worked example against a real open-source project. No production surface; safe for the agent to work autonomously per the default escalation policy."
+    }
+  ]
+}

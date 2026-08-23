@@ -1,0 +1,92 @@
+# Escalation policy
+
+Two separate axes decide what happens with a given piece of work. Keep them
+separate: one is mechanical and enforced by tooling, the other is judgment and
+enforced by you (the model) choosing to escalate.
+
+## Axis 1 — Mechanical risk (enforced by `auto-mode`, not by asking nicely)
+
+Configured per project via `claude auto-mode` (`hard_deny` / `soft_deny` /
+`allow`). As a baseline, every registered project should hard-deny:
+
+- Any deploy command against a production target (however that project defines
+  "production" — deploy scripts, `docker compose` with a prod compose file,
+  `ansible-playbook` against prod inventory, etc.)
+- `git push --force` / force-push of any kind
+- Direct `git push` to `main`/`master` (local commits are fine; pushing is not)
+- Reading or writing `.env`, and any other path a project's own config flags as
+  holding secrets/credentials
+- Any destructive bulk operation (mass delete/rewrite) in a project that has no
+  git history yet, until it does
+
+These are hard rules. If a tool call is blocked by one, that's the system
+working correctly — don't look for a workaround.
+
+## Axis 2 — Judgment risk (escalate via Telegram, `telegram_send`)
+
+Escalate — post the specific decision that needs making, then stop and wait —
+whenever:
+
+- The TODO item is contradictory or ambiguous enough that two reasonable
+  engineers would do different things.
+- The work touches a project's production surface, *even if* the specific tool
+  call would technically be allowed by `auto-mode`.
+- You've investigated and you're still not confident in the right approach —
+  this is exactly the case where you'd ask a clarifying question in an
+  interactive session. Do that here too, just over Telegram.
+- A `ROUTINE.md` fallback task (refactor, security check, etc.) would change
+  user-visible or production behavior, not just internal code quality.
+- Any git operation on `main`/`master` beyond a local commit.
+- You notice something that looks like a live bug or incident in
+  production-adjacent code, even if unrelated to your current task — surface it
+  as a notification. Don't autonomously "fix" something you stumbled on.
+- The project was only just registered, or has no git safety net yet — default
+  to escalate-and-wait on anything non-trivial until trust is established for
+  that project specifically.
+
+## Smart-mode branches are a narrower exception
+
+Smart mode (see `CLAUDE.md`) spawns its own `smart-researcher` /
+`smart-architect` / `smart-developer` pipeline when a project's TODO is empty.
+During `no_reserve_hours` (default 2am–7am), `smart-developer` does **not**
+follow Axis 2 above — it does not stop and wait on a Telegram reply for
+judgment calls that come up while building. It picks the most reasonable
+option itself and keeps going.
+
+This exception exists, and is safe, for one specific reason: that work only
+ever happens on an isolated `smart/<slug>` branch that is never pushed or
+auto-merged (Axis 1's hard-deny on pushing/merging to `master`/`main` still
+applies in full, unchanged). A wrong guess costs a review comment, not a
+production incident — git is the undo mechanism.
+
+The exception is narrow on purpose:
+
+- It applies **only** to `smart-developer`'s own branch, **only** during
+  `no_reserve_hours`. Ordinary project work — anything on a project's normal
+  branches, at any hour — still follows Axis 2 exactly as written above.
+- It never extends to anything Axis 1 already hard-denies (production
+  deploys, secrets, destructive bulk operations) — if the only reasonable
+  options for a judgment call fall into one of those categories, `smart-
+  developer` escalates and waits even at 3am, per its own agent definition.
+- Every auto-decision must be written to
+  `todos/<project>/smart/<slug>-decisions.md` (not optional, not a summary —
+  every one), and the branch's completion notification must quote each entry
+  verbatim so a human reviewing the branch can't miss what was decided
+  without them. See `CLAUDE.md`'s "Smart mode" section, step (e).
+
+## Proceed autonomously (no escalation needed)
+
+- Routine TODO items scoped to a single project, with a clear, unambiguous
+  scope.
+- Local-only changes: tests, non-prod refactors, documentation, dependency
+  bumps that don't touch a hard-deny path.
+- Anything already explicitly `allow`-listed by that project's `auto-mode`
+  config.
+
+## Proactive notification (not an escalation — no reply needed to keep going)
+
+Use `telegram_send` for a summary or a top-priority finding whenever it's
+genuinely worth surfacing unprompted — a completed batch of work, a discovered
+issue worth flagging, a pattern across projects. This is a one-way notification,
+distinct from an escalation: don't block on it, and don't send routine "still
+working" status noise.

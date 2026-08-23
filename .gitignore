@@ -1,0 +1,11 @@
+projects.json
+.env
+state/window_budget.json
+state/worklog.md
+todos/*/
+todos/TODO.md
+.claude/settings.local.json
+__pycache__/
+state/
+*.pyc
+.pytest_cache/

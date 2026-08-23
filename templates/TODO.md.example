@@ -1,0 +1,14 @@
+# Cross-project priority view
+
+Curated by the agent — highest priority first, across all registered projects.
+Each entry links to the detail item in that project's own TODO file. Keep this
+list short; detail belongs in `todos/<project>/TODO.md`.
+
+Format: `- [ ] [project] one-line summary — see todos/<project>/TODO.md#anchor`
+
+Copy this to `SQUEEZER_HOME/todos/TODO.md` once you've registered real
+projects in `SQUEEZER_HOME/config.json` — that file will contain real project
+names and details, so it stays local to your own install.
+
+- [ ] [example-project] one-line summary of the top-priority item — see
+      todos/example-project/TODO.md

@@ -1,0 +1,20 @@
+---
+description: One-time setup for squeezer — creates SQUEEZER_HOME, collects Telegram credentials, and installs the background daemon as an OS service.
+---
+
+Set up squeezer's control directory (SQUEEZER_HOME — separate from wherever
+this plugin package itself is installed, so upgrading the plugin never
+touches the user's registered projects, secrets, or state) and its
+background daemon. Work through these steps in order, using the Bash tool.
+Every step is idempotent / skip-if-exists, so this is safe to re-run.
+
+1. Resolve `SQUEEZER_HOME` (`${SQUEEZER_HOME:-$HOME/.config/squeezer}`) and create it if missing.
+2. If `SQUEEZER_HOME/config.json` doesn't exist, copy `${CLAUDE_PLUGIN_ROOT}/templates/config.example.json` to it, then **ask the user** for their real projects (name, absolute path, notes) rather than fabricating entries — each needs git history (`git init` it first if it doesn't have one yet, same safety-net requirement as before).
+3. If `SQUEEZER_HOME/.env` doesn't exist: have the user message their Telegram bot (from @BotFather) once, then run `SQUEEZER_HOME="$SQUEEZER_HOME" python3 ${CLAUDE_PLUGIN_ROOT}/daemon/telegram_get_chat_id.py` to fetch `chat_id`/`user_id`, and write `TELEGRAM_BOT_TOKEN`/`TELEGRAM_ALLOWED_CHAT_ID`/`TELEGRAM_OWNER_USER_ID` into `SQUEEZER_HOME/.env` (start from `${CLAUDE_PLUGIN_ROOT}/templates/env.example`'s shape).
+4. Seed the operational docs if they don't already exist in `SQUEEZER_HOME` (never overwrite a customized copy that's already there): copy `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.md.template` → `SQUEEZER_HOME/CLAUDE.md`, `ESCALATION_POLICY.md.template` → `SQUEEZER_HOME/ESCALATION_POLICY.md`, `ROUTINE.md.template` → `SQUEEZER_HOME/ROUTINE.md`.
+5. Ensure `SQUEEZER_HOME/todos/TODO.md` exists (copy `${CLAUDE_PLUGIN_ROOT}/templates/TODO.md.example` if missing), and a `SQUEEZER_HOME/todos/<project>/TODO.md` for each project in `config.json` that doesn't already have one.
+6. Validate: `python3 ${CLAUDE_PLUGIN_ROOT}/daemon/validate_config.py "$SQUEEZER_HOME/config.json"`. Fix anything it flags — ask the user about real project details rather than guessing.
+7. Sync baseline auto-mode safety rules: `python3 ${CLAUDE_PLUGIN_ROOT}/daemon/automode_sync.py "$SQUEEZER_HOME/config.json"`.
+8. Install the daemon as an OS service: `python3 ${CLAUDE_PLUGIN_ROOT}/daemon/install_service.py install`. This needs launchd (macOS) or systemd --user (Linux) — say so plainly if the platform isn't supported, don't guess a workaround.
+9. Wire up SQUEEZER_HOME's own statusLine so opening an interactive session there shows squeezer's one-line HUD (mode/budget/TODOs/last insight) at a glance: `python3 ${CLAUDE_PLUGIN_ROOT}/daemon/install_statusline.py "$SQUEEZER_HOME" "${CLAUDE_PLUGIN_ROOT}"`.
+10. Report a short summary back: SQUEEZER_HOME path, registered projects, current mode (`auto` or `human_in_loop`), and confirmation the daemon service is running.

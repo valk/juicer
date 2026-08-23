@@ -1,0 +1,40 @@
+# Routine fallback tasks
+
+This is the *second* fallback when a project's `todos/<project>/TODO.md` is
+empty — `CLAUDE.md`'s "Smart mode" (pareto-driven research → plan → build via
+subagents) is tried first. Land here when smart mode is disabled/throttled for
+that project, or its researcher genuinely finds nothing worth proposing.
+
+Used when a project's `todos/<project>/TODO.md` has no actionable items left.
+Pick the next relevant item for that project, do it, and log it in
+`state/worklog.md` and that project's TODO file like any other task. If a
+routine task would change user-visible or production behavior, that's an
+escalation per `ESCALATION_POLICY.md`, not an autonomous one — most of these are
+internal-quality tasks and won't be.
+
+Per-project overrides: if a project needs different routine tasks (or none of
+these apply), add a `ROUTINE.md` inside that project's own `todos/<project>/`
+directory — its contents take priority over this file for that project.
+
+## Default routine tasks (in rough priority order)
+
+1. **DRY / duplication pass** — find and consolidate genuinely duplicated logic.
+   Don't invent abstractions for code that merely looks similar; only
+   consolidate real repetition (see the general "don't add abstractions beyond
+   what's needed" guidance — this applies here too).
+2. **Security check** — scan for obvious issues: secrets committed to the repo,
+   unsafe shell/SQL/HTML interpolation, outdated dependencies with known CVEs,
+   missing input validation at trust boundaries. Report findings; don't
+   "fix" anything security-related without escalating first (see policy).
+3. **Test coverage gaps** — identify code paths with no test coverage that are
+   worth covering (not 100% coverage for its own sake — focus on logic that's
+   easy to get wrong).
+4. **Dependency audit** — flag outdated or deprecated dependencies. Don't bump
+   major versions autonomously; that's an escalation.
+5. **UI/UX validation** (only for projects with a UI) — check for obviously
+   broken states, accessibility issues, inconsistent styling. Requires actually
+   running the app if feasible — don't guess from source alone if you can check.
+6. **Documentation drift** — README/docs that no longer match the current code.
+
+If none of these apply or all are already clean for a project, say so in
+`state/worklog.md` rather than inventing busywork.

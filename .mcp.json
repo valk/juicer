@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "squeezer-telegram": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/telegram_server.py"]
+    }
+  }
+}
