@@ -7,15 +7,53 @@ needs to keep that one process alive across crashes/reboots. Invoked by the
 `/squeezer:setup` command, not run directly during normal operation.
 """
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-LABEL = "com.squeezer.daemon"
+LABEL = "com.vkhey.squeezer.daemon"
 DAEMON_SCRIPT = Path(__file__).resolve().parent / "daemon.py"
 
+# launchd/systemd --user start services with a minimal PATH that doesn't
+# include the interactive shell's PATH (nvm, ~/.local/bin, pyenv shims,
+# etc.), so subprocesses daemon.py spawns can't find `claude`, and — deeper
+# in that same process tree — a headless `claude -p` turn spawning the
+# `squeezer-telegram` MCP server via bare `python3` can resolve to whatever
+# python3 happens to be first on THIS minimal PATH (e.g. Homebrew's, which
+# won't have the `mcp` package) instead of the interpreter squeezer actually
+# runs on. Resolve both once at install time (when we still have the
+# installer's real PATH) and bake their directories into the service's own
+# PATH — first, so they take priority over any same-named fallback.
+FALLBACK_PATH = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-def launchd_plist(python_bin: str, daemon_script: Path, log_path: Path) -> str:
+
+def resolve_claude_dir() -> str | None:
+    """Directory of the `claude` executable as found on PATH — deliberately
+    not `.resolve()`d, since `claude` is commonly a symlink into a versioned
+    install dir that has no file named `claude` in it."""
+    claude_path = shutil.which("claude")
+    return str(Path(claude_path).parent) if claude_path else None
+
+
+def build_service_path(python_bin: str, claude_dir: str | None) -> str:
+    """PATH for the service's own environment: the daemon's Python
+    interpreter dir (so any `python3` spawned under it, e.g. by an MCP
+    server, matches squeezer's own interpreter — the one guaranteed to have
+    squeezer's dependencies installed), then `claude`'s dir, then a generic
+    fallback. Order-preserving de-dup, since both can land in the same dir."""
+    dirs = [str(Path(python_bin).parent), claude_dir, *FALLBACK_PATH.split(":")]
+    seen = set()
+    unique = []
+    for d in dirs:
+        if d and d not in seen:
+            seen.add(d)
+            unique.append(d)
+    return ":".join(unique)
+
+
+def launchd_plist(python_bin: str, daemon_script: Path, log_path: Path, claude_dir: str | None = None) -> str:
+    path_value = build_service_path(python_bin, claude_dir)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -27,6 +65,11 @@ def launchd_plist(python_bin: str, daemon_script: Path, log_path: Path) -> str:
     <string>{python_bin}</string>
     <string>{daemon_script}</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>{path_value}</string>
+  </dict>
   <key>KeepAlive</key>
   <true/>
   <key>RunAtLoad</key>
@@ -40,11 +83,13 @@ def launchd_plist(python_bin: str, daemon_script: Path, log_path: Path) -> str:
 """
 
 
-def systemd_unit(python_bin: str, daemon_script: Path) -> str:
+def systemd_unit(python_bin: str, daemon_script: Path, claude_dir: str | None = None) -> str:
+    path_value = build_service_path(python_bin, claude_dir)
     return f"""[Unit]
 Description=squeezer endless-loop orchestrator daemon
 
 [Service]
+Environment=PATH={path_value}
 ExecStart={python_bin} {daemon_script}
 Restart=always
 RestartSec=5
@@ -68,24 +113,32 @@ def install(python_bin: str = None, squeezer_home: Path = None) -> dict:
     python_bin = python_bin or sys.executable
     squeezer_home = squeezer_home or (Path.home() / ".config" / "squeezer")
     system = platform.system()
+    claude_dir = resolve_claude_dir()
+    warning = None if claude_dir else "could not find 'claude' on PATH at install time — the service's PATH won't include it, so spawned turns will fail until this is fixed and the service is reinstalled"
 
     if system == "Darwin":
         path = launchd_plist_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         log_path = squeezer_home / "state" / "daemon.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(launchd_plist(python_bin, DAEMON_SCRIPT, log_path))
+        path.write_text(launchd_plist(python_bin, DAEMON_SCRIPT, log_path, claude_dir))
         subprocess.run(["launchctl", "unload", str(path)], check=False, capture_output=True)
         subprocess.run(["launchctl", "load", str(path)], check=True, capture_output=True)
-        return {"ok": True, "path": str(path)}
+        result = {"ok": True, "path": str(path)}
+        if warning:
+            result["warning"] = warning
+        return result
 
     if system == "Linux":
         path = systemd_unit_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(systemd_unit(python_bin, DAEMON_SCRIPT))
+        path.write_text(systemd_unit(python_bin, DAEMON_SCRIPT, claude_dir))
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True, capture_output=True)
         subprocess.run(["systemctl", "--user", "enable", "--now", path.stem + ".service"], check=True, capture_output=True)
-        return {"ok": True, "path": str(path)}
+        result = {"ok": True, "path": str(path)}
+        if warning:
+            result["warning"] = warning
+        return result
 
     return {"ok": False, "error": f"unsupported platform: {system} (only macOS and Linux are supported)"}
 

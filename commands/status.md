@@ -11,4 +11,4 @@ summarize concisely at the end — this is a status check, not a report.
 4. Report whether `$SQUEEZER_HOME/state/paused` exists (paused vs running).
 5. `python3 ${CLAUDE_PLUGIN_ROOT}/daemon/usage_lib.py status` for the current window budget, and `... quiet-hours` for whether it's currently within `no_reserve_hours`.
 6. List registered projects from `config.json`; for each, count open (`- [ ]`) vs blocked (`- [b]`) items in `$SQUEEZER_HOME/todos/<project>/TODO.md`.
-7. Confirm the daemon service is actually running: macOS — `launchctl list | grep com.squeezer.daemon`; Linux — `systemctl --user status squeezer-daemon.service`.
+7. Confirm the daemon service is actually running: macOS — `launchctl list | grep com.vkhey.squeezer.daemon`; Linux — `systemctl --user status squeezer-daemon.service`.
